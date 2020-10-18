@@ -16,7 +16,6 @@ esac
 
 basherDir="${BASHER_ROOT:-$HOME/.basher}"
 basherExecutable="$basherDir/bin/basher"
-basherLocalRepo="$basherDir/repo"
 # shellcheck disable=SC2016
 rcFileLine1='export PATH="'$(dirname "$basherExecutable")':$PATH"'
 # shellcheck disable=SC2016
@@ -97,6 +96,14 @@ dep() {
     "dep_$command" "$@"
 }
 
+get_included_value(){
+    packageName=$1
+    if [[ $DEP_INCLUDED = *" $packageName:"* ]] ; then
+        local includedValue=${DEP_INCLUDED#*" $packageName:"}
+        echo "${includedValue%" "*}"
+    fi
+}
+
 dep_define(){
     local packageNameTag=$1
     if [[ -z $packageNameTag ]] ; then
@@ -117,9 +124,8 @@ dep_define(){
     local logSubstring="package '$packageNameTag'"
     >&2 echo "defining $logSubstring"
 
-    if [[ $DEP_INCLUDED = *" $packageName:"* ]] ; then
-        local includedValue=${DEP_INCLUDED#*" $packageName:"}
-        local includedValue=${includedValue%" "*}
+    includedValue=$(get_included_value "$packageName")
+    if [[ -n "$includedValue" ]] ; then
         local includedTag=${includedValue%:*}
         if [[ "$packageTag" != "$includedTag" ]] ; then
             >&2 echo "can't define '$packageNameTag', package already included with different version: $includedTag"
@@ -150,12 +156,9 @@ dep_include() {
     local packageName=${arr[0]}
     local packageTag=${arr[1]}
     
-    if [[ $DEP_INCLUDED = *" $packageName:"* ]] ; then
-        local includedValue=${DEP_INCLUDED#*" $packageName:"}
-        local includedValue=${includedValue%" "*}
+    includedValue=$(get_included_value "$packageName")
+    if [[ -n "$includedValue" ]] ; then
         local includedTag=${includedValue%:*}
-        local includedScripts=${includedValue#*:}
-        local includedScripts=":$includedScripts:"
         if [[ -z "$packageTag" ]] ; then
             >&2 echo "using defined package version: $includedTag"
             packageTag=$includedTag
@@ -163,6 +166,8 @@ dep_include() {
             >&2 echo "can't include '$packageNameTag', package already included with different version: $includedTag"
             exit 1
         fi
+        local includedScripts=${includedValue#*:}
+        local includedScripts=":$includedScripts:"
         if [[ $includedScripts = *:$scriptName:* ]] ; then
             >&2 echo "already included, skipping"
             return
@@ -178,7 +183,7 @@ dep_include() {
     fi
 
     local versionedPackageName="$packageName-$packageTag"
-    local localPackagePath="$basherLocalRepo/$packageName/$packageTag"
+    local localPackagePath="$HOME/.dep/repository/$packageName/$packageTag"
     if [[ $packageTag != *"-SNAPSHOT" ]] && [[ -d "$localPackagePath" ]] && $basherExecutable list | grep -q "$versionedPackageName" ; then
         >&2 echo "found existing local copy of: '$versionedPackageName'"
         gitExecute="git --git-dir "$localPackagePath/.git""
