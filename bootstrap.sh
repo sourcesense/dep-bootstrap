@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.2.0
+scriptVersion=0.3.0
 >&2 echo "Running $scriptName version=$scriptVersion"
 
 shellName="${SHELL##*/}"
