@@ -90,40 +90,95 @@ checkBlanks "$repoBaseURL"
 dep() {
     command=$1
     if [[ -z $command ]] ; then
-        >&2 echo "usage: dep <command> <options> (currently available commands: [include])"
+        >&2 echo "usage: dep <command> <options> (currently available commands: define, include)"
         exit 1
     fi
     shift
     "dep_$command" "$@"
 }
 
+dep_define(){
+    local packageNameTag=$1
+    if [[ -z $packageNameTag ]] ; then
+        >&2 echo "usage: dep define <packageName:packageTag>"
+        exit 1
+    fi
+    checkBlanks "$packageNameTag"
+    local arr
+    #shellcheck disable=SC2206
+    arr=(${packageNameTag//:/ })
+    local packageName=${arr[0]}
+    local packageTag=${arr[1]}
+    if [[ -z $packageName ]] || [[ -z $packageTag ]]; then
+        >&2 echo "usage: dep define <packageName:packageTag>"
+        exit 1
+    fi
+    
+    local logSubstring="package '$packageNameTag'"
+    >&2 echo "defining $logSubstring"
+
+    if [[ $DEP_INCLUDED = *" $packageName:"* ]] ; then
+        local includedValue=${DEP_INCLUDED#*" $packageName:"}
+        local includedValue=${includedValue%" "*}
+        local includedTag=${includedValue%:*}
+        if [[ "$packageTag" != "$includedTag" ]] ; then
+            >&2 echo "can't define '$packageNameTag', package already included with different version: $includedTag"
+            exit 1
+        fi
+        >&2 echo "already defined, skipping"
+    else
+        DEP_INCLUDED="$DEP_INCLUDED $packageName:$packageTag"
+        >&2 echo "defined $logSubstring"
+    fi
+}
+
 dep_include() {
-    packageNameTag=$1
-    scriptName=$2
+    local packageNameTag=$1
+    local scriptName=$2
     if [[ -z $packageNameTag ]] || [[ -z $scriptName ]] ; then
-        >&2 echo "usage: dep include <packageName:packageTag> <scriptName>"
+        >&2 echo "usage: dep include <packageName[:packageTag]> <scriptName>"
         exit 1
     fi
     checkBlanks "$packageNameTag" "$scriptName"
 
+    local logSubstring="script '$scriptName.sh' from package: '$packageNameTag'"
+    >&2 echo "including $logSubstring"
+    
     local arr
     #shellcheck disable=SC2206
     arr=(${packageNameTag//:/ })
-    packageName=${arr[0]}
-    packageTag=${arr[1]}
-
-    local logSubstring="script '$scriptName.sh' tag=$packageTag git repo=$repoBaseURL/$packageName local repo=$basherLocalRepo"
-    local included=" $packageName-$scriptName "
-    >&2 echo "including $logSubstring"
-    if [[ $DEP_INCLUDE_ALL = *$included* ]] ; then
-        >&2 echo "already included, skipping"
-        return
+    local packageName=${arr[0]}
+    local packageTag=${arr[1]}
+    
+    if [[ $DEP_INCLUDED = *" $packageName:"* ]] ; then
+        local includedValue=${DEP_INCLUDED#*" $packageName:"}
+        local includedValue=${includedValue%" "*}
+        local includedTag=${includedValue%:*}
+        local includedScripts=${includedValue#*:}
+        local includedScripts=":$includedScripts:"
+        if [[ -z "$packageTag" ]] ; then
+            >&2 echo "using defined package version: $includedTag"
+            packageTag=$includedTag
+        elif [[ "$packageTag" != "$includedTag" ]] ; then
+            >&2 echo "can't include '$packageNameTag', package already included with different version: $includedTag"
+            exit 1
+        fi
+        if [[ $includedScripts = *:$scriptName:* ]] ; then
+            >&2 echo "already included, skipping"
+            return
+        fi
+        local oldEntry=" $packageName:$includedValue"
+        local newEntry="$oldEntry:$scriptName"
+        DEP_INCLUDED=${DEP_INCLUDED/$oldEntry/$newEntry}
+    elif [[ -z "$packageTag" ]] ; then
+        >&2 echo "missing version"
+        exit 1
     else
-        DEP_INCLUDE_ALL="$DEP_INCLUDE_ALL$included" 
+        DEP_INCLUDED="$DEP_INCLUDED $packageName:$packageTag:$scriptName"
     fi
 
-    versionedPackageName="$packageName-$packageTag"
-    localPackagePath="$basherLocalRepo/$packageName/$packageTag"
+    local versionedPackageName="$packageName-$packageTag"
+    local localPackagePath="$basherLocalRepo/$packageName/$packageTag"
     if [[ $packageTag != *"-SNAPSHOT" ]] && [[ -d "$localPackagePath" ]] && $basherExecutable list | grep -q "$versionedPackageName" ; then
         >&2 echo "found existing local copy of: '$versionedPackageName'"
         gitExecute="git --git-dir "$localPackagePath/.git""
@@ -140,7 +195,7 @@ dep_include() {
         $basherExecutable link "$localPackagePath" "$versionedPackageName" || exit 1
     fi
 
-    CALLER_PACKAGE=$versionedPackageName include "$versionedPackageName" "lib/$scriptName.sh" || exit 1
+    include "$versionedPackageName" "lib/$scriptName.sh" || exit 1
 
     >&2 echo "inclued $logSubstring"
 }
