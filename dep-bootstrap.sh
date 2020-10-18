@@ -18,7 +18,7 @@ if [[ ! -d "$targetDir/bootstrap/$version" ]] ; then
         git -c advice.detachedHead=false clone --depth 1 --branch "$1" "$url" "$targetDir/git" || exit 1
     else
         >&2 echo "checking out dep-bootstrap repo tag $version in $targetDir/git"
-        (cd "$targetDir/git" && git fetch --all --tags --prune && git checkout "tags/$version") || exit 1
+        (cd "$targetDir/git" && git fetch --all --tags --prune && git reset --hard "tags/$version") || exit 1
     fi
     >&2 echo "copying bootstrap.sh in $targetDir/bootstrap/$version"
     mkdir -p "$targetDir/bootstrap/$version" || exit 1
