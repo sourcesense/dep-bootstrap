@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-scriptName=dep-bootstrap.sh
+scriptName=bootstrap.sh
 scriptVersion=0.2.0-SNAPSHOT
 >&2 echo "Running $scriptName version=$scriptVersion"
 
@@ -78,7 +78,7 @@ checkBlanks() {
     for s in "$@"
     do
         if [[ $s = *[[:space:]]* ]] ; then
-             >&2 echo "no blanks allowed in parameters/variables"
+            >&2 echo "no blanks allowed in parameters/variables"
             exit 1
         fi
     done
@@ -129,8 +129,8 @@ dep_include() {
         gitExecute="git --git-dir "$localPackagePath/.git""
         existingTag=$($gitExecute describe --exact-match --tags) || exit 1
         if [[ "$existingTag" != "$packageTag" ]] ; then
-             >&2 echo "unexpected local tag found: '$existingTag'. Expected: '$packageTag'"
-             exit 1
+            >&2 echo "unexpected local tag found: '$existingTag'. Expected: '$packageTag'"
+            exit 1
         fi
     else
         $basherExecutable uninstall "$versionedPackageName" 1>&2
