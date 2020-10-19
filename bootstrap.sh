@@ -100,7 +100,7 @@ get_included_value(){
     packageName=$1
     if [[ $DEP_INCLUDED = *" $packageName:"* ]] ; then
         local includedValue=${DEP_INCLUDED#*" $packageName:"}
-        echo "${includedValue%" "*}"
+        echo "${includedValue%%" "*}"
     fi
 }
 
@@ -126,7 +126,7 @@ dep_define(){
 
     includedValue=$(get_included_value "$packageName")
     if [[ -n "$includedValue" ]] ; then
-        local includedTag=${includedValue%:*}
+        local includedTag=${includedValue%%:*}
         if [[ "$packageTag" != "$includedTag" ]] ; then
             >&2 echo "can't define '$packageNameTag', package already included with different version: $includedTag"
             exit 1
@@ -158,7 +158,7 @@ dep_include() {
     
     includedValue=$(get_included_value "$packageName")
     if [[ -n "$includedValue" ]] ; then
-        local includedTag=${includedValue%:*}
+        local includedTag=${includedValue%%:*}
         if [[ -z "$packageTag" ]] ; then
             >&2 echo "using defined package version: $includedTag"
             packageTag=$includedTag
