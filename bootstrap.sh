@@ -186,8 +186,7 @@ dep_include() {
     local localPackagePath="$HOME/.dep/repository/$packageName/$packageTag"
     if [[ $packageTag != *"-SNAPSHOT" ]] && [[ -d "$localPackagePath" ]] && $basherExecutable list | grep -q "$versionedPackageName" ; then
         >&2 echo "found existing local copy of: '$versionedPackageName'"
-        gitExecute="git --git-dir "$localPackagePath/.git""
-        existingTag=$($gitExecute describe --exact-match --tags) || exit 1
+        existingTag=$(cd "$localPackagePath/.git" && git describe --exact-match --tags) || exit 1
         if [[ "$existingTag" != "$packageTag" ]] ; then
             >&2 echo "unexpected local tag found: '$existingTag'. Expected: '$packageTag'"
             exit 1
