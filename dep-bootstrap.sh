@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=dep-bootstrap.sh
-scriptVersion=0.3.0
+scriptVersion=0.3.1
 >&2 echo "Running $scriptName version=$scriptVersion"
 
 version="$1"
@@ -19,7 +19,7 @@ if [[ ! -d "$targetDir/bootstrap/$version" ]] ; then
         git -c advice.detachedHead=false clone --depth 1 --branch "$version" "$url" "$targetDir/git" || exit 1
     else
         >&2 echo "checking out dep-bootstrap repo tag $version in $targetDir/git"
-        (cd "$targetDir/git" && git fetch --all --tags --prune && git reset --hard "tags/$version") || exit 1
+        (cd "$targetDir/git" && git fetch --all --tags --prune -q && git reset --hard -q "tags/$version") || exit 1
     fi
     >&2 echo "copying bootstrap.sh in $targetDir/bootstrap/$version"
     mkdir -p "$targetDir/bootstrap/$version" || exit 1
