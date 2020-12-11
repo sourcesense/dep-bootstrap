@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 scriptName=dep-bootstrap.sh
 scriptVersion=0.4.3-SNAPSHOT
+
 >&2 echo "Running $scriptName version=$scriptVersion"
 
 version="$1"
