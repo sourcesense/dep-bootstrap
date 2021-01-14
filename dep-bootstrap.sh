@@ -1,32 +1,45 @@
 #!/usr/bin/env bash
 scriptName=dep-bootstrap.sh
-scriptVersion=0.4.3-SNAPSHOT
+scriptVersion=1
+repoURL=https://github.com/EcoMind/dep-bootstrap.git
+targetDir="$HOME/.dep"
 
->&2 echo "Running $scriptName version=$scriptVersion"
-
+scriptErrorLabel="[ERROR IN $scriptName v.$scriptVersion]"
 version="$1"
-if [[ -z $version ]] ; then
-    >&2 echo "usage: $scriptName <version> [parameters]"
+if [[ -z "$version" ]] ; then
+    >&2 echo "$scriptErrorLabel usage: $scriptName <version> [parameters]"
     exit 1
 fi
 shift
-
-targetDir="$HOME/.dep"
-if [[ ! -d "$targetDir/bootstrap/$version" ]] ; then
-    >&2 echo "bootstrap version $version not found"
-    if [[ ! -d "$targetDir/git" ]] ; then
-        >&2 echo "cloning dep-bootstrap repo tag $version in $targetDir/git"
-        url=https://github.com/EcoMind/dep-bootstrap.git
-        git -c advice.detachedHead=false clone --depth 1 --branch "$version" "$url" "$targetDir/git" || exit 1
-    else
-        >&2 echo "checking out dep-bootstrap repo tag $version in $targetDir/git"
-        (cd "$targetDir/git" && git fetch --all --tags --prune -q && git reset --hard -q "tags/$version") || exit 1
+if [ -z "$DEP_SOURCED" ] ; then
+    gitDir="$targetDir/git"
+    versionDir="$targetDir/bootstrap/$version"
+    if [[ ! -d "$versionDir" ]] ; then
+        if [[ ! -d "$gitDir" ]] ; then
+            if ! git -c advice.detachedHead=false clone --depth 1 --branch "$version" "$repoURL" "$gitDir" -q ; then
+                >&2 echo "$scriptErrorLabel error cloning repo '$repoURL' tag '$version' in '$gitDir'"
+                exit 1
+            fi
+        else
+            if ! (cd "$gitDir" && git fetch --all --tags --prune -q && git reset --hard -q "tags/$version") ; then
+                >&2 echo "$scriptErrorLabel error checking out repo '$repoURL' tag '$version' in '$gitDir'"
+                exit 1
+            fi
+        fi
+        if ! mkdir -p "$versionDir" ; then
+            >&2 echo "$scriptErrorLabel error creating dir '$versionDir'"
+            exit 1
+        fi
+        bootstrapSource="$gitDir/bootstrap.sh"
+        if ! cp "$bootstrapSource" "$versionDir" ; then
+            >&2 echo "$scriptErrorLabel error copying '$bootstrapSource' into '$versionDir'"
+            exit 1
+        fi
     fi
-    >&2 echo "copying bootstrap.sh in $targetDir/bootstrap/$version"
-    mkdir -p "$targetDir/bootstrap/$version" || exit 1
-    cp "$targetDir/git/bootstrap.sh" "$targetDir/bootstrap/$version" || exit 1
+    bootstrapTarget="$versionDir/bootstrap.sh"
+    # shellcheck disable=SC1090
+    if ! . "$bootstrapTarget" "$@" ; then
+        >&2 echo "$scriptErrorLabel error sourcing '$bootstrapTarget'"
+        exit 1
+    fi
 fi
-
->&2 echo "sourcing $targetDir/bootstrap/$version/bootstrap.sh"
-# shellcheck disable=SC1090
-. "$targetDir/bootstrap/$version/bootstrap.sh" "$@"
