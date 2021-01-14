@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.4.3-SNAPSHOT
+scriptVersion=0.4.5-SNAPSHOT
 
 # Levels:
 # 0: prints nothing
