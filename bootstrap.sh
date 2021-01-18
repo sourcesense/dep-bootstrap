@@ -1,25 +1,15 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.4.5-SNAPSHOT
+scriptVersion=0.5.0-SNAPSHOT
+logLinePrefix="[dep]"
 
 # Levels:
 # 0: prints nothing
 # 1: prints included deps on one line (currently not implemented, equal to verboseness level 2)
 # 2: print stree of included deps, concisely but on each dep on one line
+# 3: print verbose
+# 4: print operation internals (output of git, etc.) intermixed with dep messages
 _DEP_VERBOSENESS_LEVEL="${_DEP_VERBOSENESS_LEVEL:-2}"
-
-# Define as non-empty to show operation internals (output of git, etc.) intermixed with dep messages
-# Ignored when _DEP_VERBOSENESS_LEVEL is 0
-#_DEP_INTERNALS_SHOWN=
-
-if (( _DEP_VERBOSENESS_LEVEL == 0 )) ; then
-    _DEP_INTERNALS_SHOWN=
-fi
-
-_capitalize() {
-    local message="$*"
-    echo "${message^}"
-}
 
 _emit_log_line_string() {
     local message="$*"
@@ -28,20 +18,27 @@ _emit_log_line_string() {
     fi
 }
 
+_emit_log_line_newline() {
+    if (( _DEP_VERBOSENESS_LEVEL > 0 )) ; then
+        >&2 echo
+    fi
+}
+
 _emit_log_line() {
     local message="$*"
-    _emit_log_line_string "- $(_capitalize "$message")"
+    _emit_log_line_string "$logLinePrefix ${message^}"
     _emit_log_line_newline
 }
 
 _LOG_LINE_WATCHER_INDENT_COUNT=0
+_LOG_LINE_WATCHER_ITEMS=0
 
 _emit_log_line_start() {
     local message="$*"
     if (( _LOG_LINE_WATCHER_INDENT_COUNT > 0 )) ; then
         _emit_log_line_newline
     fi
-    _emit_log_line_string "$(printf "%${_LOG_LINE_WATCHER_INDENT_COUNT}s" "")- ${message^} ... "
+    _emit_log_line_string "$logLinePrefix$(printf "%${_LOG_LINE_WATCHER_INDENT_COUNT}s" "") ${message^} ... "
     _LOG_LINE_WATCHER_ITEMS=0
     _LOG_LINE_WATCHER_INDENT_COUNT=$(( _LOG_LINE_WATCHER_INDENT_COUNT + 2 ))
 }
@@ -51,31 +48,23 @@ _emit_log_line_part() {
     if (( _LOG_LINE_WATCHER_ITEMS > 0 )) ; then
         _emit_log_line_string ", "
     fi
-
     _emit_log_line_string "$message"
     _LOG_LINE_WATCHER_ITEMS=$(( _LOG_LINE_WATCHER_ITEMS + 1 ))
 }
 
 _emit_log_line_end() {
-    if (( _LOG_LINE_WATCHER_ITEMS > 0 )) ; then
-        _emit_log_line_string ". "
+    if (( _LOG_LINE_WATCHER_INDENT_COUNT <= 2 )) ; then
+        _emit_log_line_newline
     fi
-    _emit_log_line_newline
     _LOG_LINE_WATCHER_INDENT_COUNT=$(( _LOG_LINE_WATCHER_INDENT_COUNT - 2 ))
-}
-
-_emit_log_line_newline() {
-    if (( _DEP_VERBOSENESS_LEVEL > 0 )) ; then
-        >&2 echo
-    fi
 }
 
 _mute() {
     local parameters=("$@")
-    if [ -z "$_DEP_INTERNALS_SHOWN" ]; then
-        "${parameters[0]}" "${parameters[@]:1}" >/dev/null 2>&1
-    else
+    if (( _DEP_VERBOSENESS_LEVEL > 3 )) ; then
         "${parameters[0]}" "${parameters[@]:1}"
+    else
+        "${parameters[0]}" "${parameters[@]:1}" >/dev/null 2>&1
     fi
 }
 
@@ -207,10 +196,10 @@ dep_define(){
     if [[ -n "$includedValue" ]] ; then
         local includedTag=${includedValue%%:*}
         if [[ "$packageTag" != "$includedTag" ]] ; then
-            if [ -z "$VERBOSE_DEP" ]; then
-                _emit_log_line_part "can't define, package already included with different version: $includedTag"
+            if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
+                _emit_log_line_part "can't define '$packageNameTag', package already defined with different version: $includedTag"
             else
-                _emit_log_line_part "can't define '$packageNameTag', package already included with different version: $includedTag"
+                _emit_log_line_part "can't define, package already defined with different version: $includedTag"
             fi
             _emit_log_line_end
             exit 1
@@ -218,10 +207,10 @@ dep_define(){
         _emit_log_line_part "already defined, skipping"
     else
         DEP_INCLUDED="$DEP_INCLUDED $packageName:$packageTag"
-        if [ -z "$VERBOSE_DEP" ]; then
-            _emit_log_line_part "defined"
-        else
+        if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
             _emit_log_line_part "defined $logSubstring"
+        else
+            _emit_log_line_part "defined"
         fi
     fi
     _emit_log_line_end
@@ -252,10 +241,10 @@ dep_include() {
             _emit_log_line_part "using defined package version: $includedTag"
             packageTag=$includedTag
         elif [[ "$packageTag" != "$includedTag" ]] ; then
-            if [ -z "$VERBOSE_DEP" ]; then
-                _emit_log_line_part "can't include, package already included with different version: $includedTag"
-            else
+            if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
                 _emit_log_line_part "can't include '$packageNameTag', package already included with different version: $includedTag"
+            else
+                _emit_log_line_part "can't include, package already included with different version: $includedTag"
             fi
             _emit_log_line_end
             exit 1
@@ -281,10 +270,10 @@ dep_include() {
     local versionedPackageName="$packageName-$packageTag"
     local localPackagePath="$HOME/.dep/repository/$packageName/$packageTag"
     if [[ $packageTag != *"-SNAPSHOT" ]] && [[ -d "$localPackagePath" ]] && $basherExecutable list | grep -q "$versionedPackageName" ; then
-        if [ -z "$VERBOSE_DEP" ]; then
-            _emit_log_line_part "found existing local copy"
-        else
+        if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
             _emit_log_line_part "found existing local copy of: '$versionedPackageName'"
+        else
+            _emit_log_line_part "found existing local copy"
         fi
         existingTag=$(cd "$localPackagePath/.git" && git describe --exact-match --tags) || exit 1
         if [[ "$existingTag" != "$packageTag" ]] ; then
@@ -316,10 +305,5 @@ dep_include() {
         exit 1
     fi
 
-    if [ -z "$VERBOSE_DEP" ]; then
-        _emit_log_line_part "included"
-    else
-        _emit_log_line_part "included $logSubstring"
-    fi
     _emit_log_line_end
 }
