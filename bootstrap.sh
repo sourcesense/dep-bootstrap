@@ -1,24 +1,38 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.4.4
+scriptVersion=0.5.0
+logLinePrefix="[dep]"
 
 # Levels:
 # 0: prints nothing
 # 1: prints included deps on one line (currently not implemented, equal to verboseness level 2)
 # 2: print stree of included deps, concisely but on each dep on one line
+# 3: print verbose
+# 4: print operation internals (output of git, etc.) intermixed with dep messages
 _DEP_VERBOSENESS_LEVEL="${_DEP_VERBOSENESS_LEVEL:-2}"
 
-# Define as non-empty to show operation internals (output of git, etc.) intermixed with dep messages
-# Ignored when _DEP_VERBOSENESS_LEVEL is 0
-#_DEP_INTERNALS_SHOWN=
+_LOG_LINE_WATCHER_INDENT_SKIP_FIRST=0
+_LOG_LINE_WATCHER_INDENT_COUNT=0
+_LOG_LINE_WATCHER_ITEMS=0
 
-if (( _DEP_VERBOSENESS_LEVEL == 0 )) ; then
-    _DEP_INTERNALS_SHOWN=
-fi
+_exit_err() {
+    >&2 echo
+    >&2 echo "[ERROR] $*"
+    exit 1
+}
 
-_capitalize() {
-    local message="$*"
-    echo "${message^}"
+_indent_begin() {
+    if [[ $_LOG_LINE_WATCHER_INDENT_SKIP_FIRST == 0 ]] ; then
+        _LOG_LINE_WATCHER_INDENT_SKIP_FIRST=1
+    else
+        _LOG_LINE_WATCHER_INDENT_COUNT=$(( _LOG_LINE_WATCHER_INDENT_COUNT + 2 ))
+    fi
+}
+
+_indent_end() {
+    if [[ $_LOG_LINE_WATCHER_INDENT_COUNT -gt 0 ]] ; then
+        _LOG_LINE_WATCHER_INDENT_COUNT=$(( _LOG_LINE_WATCHER_INDENT_COUNT - 2 ))
+    fi
 }
 
 _emit_log_line_string() {
@@ -28,22 +42,22 @@ _emit_log_line_string() {
     fi
 }
 
+_emit_log_line_newline() {
+    if (( _DEP_VERBOSENESS_LEVEL > 0 )) ; then
+        >&2 echo
+    fi
+}
+
 _emit_log_line() {
     local message="$*"
-    _emit_log_line_string "- $(_capitalize "$message")"
+    _emit_log_line_string "$logLinePrefix ${message^}"
     _emit_log_line_newline
 }
 
-_LOG_LINE_WATCHER_INDENT_COUNT=0
-
 _emit_log_line_start() {
     local message="$*"
-    if (( _LOG_LINE_WATCHER_INDENT_COUNT > 0 )) ; then
-        _emit_log_line_newline
-    fi
-    _emit_log_line_string "$(printf "%${_LOG_LINE_WATCHER_INDENT_COUNT}s" "")- ${message^} ... "
+    _emit_log_line_string "$logLinePrefix$(printf "%${_LOG_LINE_WATCHER_INDENT_COUNT}s" "") ${message^} ... "
     _LOG_LINE_WATCHER_ITEMS=0
-    _LOG_LINE_WATCHER_INDENT_COUNT=$(( _LOG_LINE_WATCHER_INDENT_COUNT + 2 ))
 }
 
 _emit_log_line_part() {
@@ -51,31 +65,20 @@ _emit_log_line_part() {
     if (( _LOG_LINE_WATCHER_ITEMS > 0 )) ; then
         _emit_log_line_string ", "
     fi
-
     _emit_log_line_string "$message"
     _LOG_LINE_WATCHER_ITEMS=$(( _LOG_LINE_WATCHER_ITEMS + 1 ))
 }
 
 _emit_log_line_end() {
-    if (( _LOG_LINE_WATCHER_ITEMS > 0 )) ; then
-        _emit_log_line_string ". "
-    fi
     _emit_log_line_newline
-    _LOG_LINE_WATCHER_INDENT_COUNT=$(( _LOG_LINE_WATCHER_INDENT_COUNT - 2 ))
-}
-
-_emit_log_line_newline() {
-    if (( _DEP_VERBOSENESS_LEVEL > 0 )) ; then
-        >&2 echo
-    fi
 }
 
 _mute() {
     local parameters=("$@")
-    if [ -z "$_DEP_INTERNALS_SHOWN" ]; then
-        "${parameters[0]}" "${parameters[@]:1}" >/dev/null 2>&1
-    else
+    if (( _DEP_VERBOSENESS_LEVEL > 3 )) ; then
         "${parameters[0]}" "${parameters[@]:1}"
+    else
+        "${parameters[0]}" "${parameters[@]:1}" >/dev/null 2>&1
     fi
 }
 
@@ -119,8 +122,7 @@ if [[ "$1" == "install" ]] ; then
                 rcFile=".zshrc"
                 ;;
             *)
-                _emit_log_line "Unsupported shell $shellName"
-                exit 1
+                _exit_err "Unsupported shell $shellName"
                 ;;
         esac
         echo "$rcFileLine1" >> "$HOME"/$rcFile
@@ -132,8 +134,7 @@ if [[ "$1" == "install" ]] ; then
 fi
 
 if [[ "$DEP_SOURCED" == 1  ]]; then 
-    _emit_log_line "Error invoking '$scriptName' (already sourced)"
-    exit 1
+    _exit_err "Error invoking '$scriptName' (already sourced)"
 fi
 
 if [ -f "$basherExecutable" ]; then
@@ -147,8 +148,7 @@ if [ -f "$basherExecutable" ]; then
     . "$(dirname "$basherExecutable")/../lib/include.$shellNameFallback"
     DEP_SOURCED=1
 else
-    _emit_log_line "Unable to find basher executable, try installing using command: '$scriptName install'"
-    exit 1
+    _exit_err "Unable to find basher executable, try installing using command: '$scriptName install'"
 fi
 
 checkBlanks() {
@@ -156,8 +156,7 @@ checkBlanks() {
     for s in "$@"
     do
         if [[ $s = *[[:space:]]* ]] ; then
-            _emit_log_line "no blanks allowed in parameters/variables"
-            exit 1
+            _exit_err "no blanks allowed in parameters/variables"
         fi
     done
 }
@@ -168,8 +167,7 @@ checkBlanks "$repoBaseURL"
 dep() {
     command=$1
     if [[ -z $command ]] ; then
-        _emit_log_line "usage: dep <command> <options> (currently available commands: define, include)"
-        exit 1
+        _exit_err "usage: dep <command> <options> (currently available commands: define, include)"
     fi
     shift
     "dep_$command" "$@"
@@ -186,8 +184,7 @@ get_included_value(){
 dep_define(){
     local packageNameTag=$1
     if [[ -z $packageNameTag ]] ; then
-        _emit_log_line "usage: dep define <packageName:packageTag>"
-        exit 1
+        _exit_err "usage: dep define <packageName:packageTag>"
     fi
     checkBlanks "$packageNameTag"
     local arr
@@ -196,8 +193,7 @@ dep_define(){
     local packageName=${arr[0]}
     local packageTag=${arr[1]}
     if [[ -z $packageName ]] || [[ -z $packageTag ]]; then
-        _emit_log_line "usage: dep define <packageName:packageTag>"
-        exit 1
+        _exit_err "usage: dep define <packageName:packageTag>"
     fi
     
     local logSubstring="package '$packageNameTag'"
@@ -207,32 +203,33 @@ dep_define(){
     if [[ -n "$includedValue" ]] ; then
         local includedTag=${includedValue%%:*}
         if [[ "$packageTag" != "$includedTag" ]] ; then
-            if [ -z "$VERBOSE_DEP" ]; then
-                _emit_log_line_part "can't define, package already included with different version: $includedTag"
+            if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
+                _emit_log_line_part "can't define '$packageNameTag', package already defined with different version: $includedTag"
             else
-                _emit_log_line_part "can't define '$packageNameTag', package already included with different version: $includedTag"
+                _emit_log_line_part "can't define, package already defined with different version: $includedTag"
             fi
             _emit_log_line_end
-            exit 1
+            _exit_err
         fi
         _emit_log_line_part "already defined, skipping"
     else
         DEP_INCLUDED="$DEP_INCLUDED $packageName:$packageTag"
-        if [ -z "$VERBOSE_DEP" ]; then
-            _emit_log_line_part "defined"
-        else
+        if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
             _emit_log_line_part "defined $logSubstring"
+        else
+            _emit_log_line_part "defined"
         fi
     fi
     _emit_log_line_end
 }
 
 dep_include() {
+    _indent_begin
+
     local packageNameTag=$1
     local scriptName=$2
     if [[ -z $packageNameTag ]] || [[ -z $scriptName ]] ; then
-        _emit_log_line "usage: dep include <packageName[:packageTag]> <scriptName>"
-        exit 1
+        _exit_err "usage: dep include <packageName[:packageTag]> <scriptName>"
     fi
     checkBlanks "$packageNameTag" "$scriptName"
 
@@ -252,19 +249,20 @@ dep_include() {
             _emit_log_line_part "using defined package version: $includedTag"
             packageTag=$includedTag
         elif [[ "$packageTag" != "$includedTag" ]] ; then
-            if [ -z "$VERBOSE_DEP" ]; then
-                _emit_log_line_part "can't include, package already included with different version: $includedTag"
-            else
+            if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
                 _emit_log_line_part "can't include '$packageNameTag', package already included with different version: $includedTag"
+            else
+                _emit_log_line_part "can't include, package already included with different version: $includedTag"
             fi
             _emit_log_line_end
-            exit 1
+            _exit_err
         fi
         local includedScripts=${includedValue#*:}
         local includedScripts=":$includedScripts:"
         if [[ $includedScripts = *:$scriptName:* ]] ; then
             _emit_log_line_part "already included, skipping"
             _emit_log_line_end
+            _indent_end
             return
         fi
         local oldEntry=" $packageName:$includedValue"
@@ -273,53 +271,57 @@ dep_include() {
     elif [[ -z "$packageTag" ]] ; then
         _emit_log_line_part "missing version"
         _emit_log_line_end
-        exit 1
+        _exit_err
     else
         DEP_INCLUDED="$DEP_INCLUDED $packageName:$packageTag:$scriptName"
     fi
 
     local versionedPackageName="$packageName-$packageTag"
     local localPackagePath="$HOME/.dep/repository/$packageName/$packageTag"
-    if [[ $packageTag != *"-SNAPSHOT" ]] && [[ -d "$localPackagePath" ]] && $basherExecutable list | grep -q "$versionedPackageName" ; then
-        if [ -z "$VERBOSE_DEP" ]; then
-            _emit_log_line_part "found existing local copy"
-        else
-            _emit_log_line_part "found existing local copy of: '$versionedPackageName'"
+    
+    if [[ $packageTag == "local-SNAPSHOT" ]] ; then
+        if [[ ! -d "$localPackagePath" ]] ; then
+            _exit_err "$localPackagePath not found. Please create it using following command (replacing '/path/to/my/local' part): 'mkdir -p $localPackagePath && ln -s /path/to/my/local/$packageName/lib $localPackagePath/lib'"
+        elif ! $basherExecutable list | grep -q "$versionedPackageName" ; then
+            "$basherExecutable" link "$localPackagePath" "$versionedPackageName"
         fi
-        existingTag=$(cd "$localPackagePath/.git" && git describe --exact-match --tags) || exit 1
+    elif [[ $packageTag != *"-SNAPSHOT" ]] && [[ -d "$localPackagePath" ]] && $basherExecutable list | grep -q "$versionedPackageName" ; then
+        if (( _DEP_VERBOSENESS_LEVEL > 2 )) ; then
+            _emit_log_line_part "found existing local copy of: '$versionedPackageName'"
+        else
+            _emit_log_line_part "found existing local copy"
+        fi
+        if ! existingTag=$(cd "$localPackagePath/.git" && git describe --exact-match --tags) ; then
+            _exit_err "error checking local copy tag"
+        fi
         if [[ "$existingTag" != "$packageTag" ]] ; then
             _emit_log_line_part "unexpected local tag found: '$existingTag'. Expected: '$packageTag'"
             _emit_log_line_end
-            exit 1
+            _exit_err
         fi
     else
         _mute "$basherExecutable" uninstall "$versionedPackageName" 1>&2
         _emit_log_line_part "cloning"
         [ ! -d "$localPackagePath" ] && mkdir -p "$localPackagePath"
         rm -rf "$localPackagePath"
-        _mute git -c advice.detachedHead=false clone --depth 1 --branch "$packageTag" "$repoBaseURL/$packageName" "$localPackagePath" || exit 1
+        if ! _mute git -c advice.detachedHead=false clone --depth 1 --branch "$packageTag" "$repoBaseURL/$packageName" "$localPackagePath" ; then
+            _exit_err "error cloning repo"
+        fi
         _emit_log_line_part "linking"
         if _mute "$basherExecutable" link "$localPackagePath" "$versionedPackageName" ; then 
             true
         else
             _emit_log_line_part "could not link using basher!"
             _emit_log_line_end
-            exit 1
+            _exit_err
         fi
     fi
-
-    if include "$versionedPackageName" "lib/$scriptName.sh" ; then
-        true # Correctly included
-    else 
-        _emit_log_line_part "could not include ${logSubstring}"
-        _emit_log_line_end
-        exit 1
-    fi
-
-    if [ -z "$VERBOSE_DEP" ]; then
-        _emit_log_line_part "included"
-    else
-        _emit_log_line_part "included $logSubstring"
-    fi
+    
     _emit_log_line_end
+
+    if ! include "$versionedPackageName" "lib/$scriptName.sh" ; then
+        _exit_err "could not include ${logSubstring}"
+    fi
+
+    _indent_end
 }
