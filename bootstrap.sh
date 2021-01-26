@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.5.0
+scriptVersion=0.5.1
 logLinePrefix="[dep]"
 
 # Levels:
@@ -100,7 +100,7 @@ basherExecutable="$basherDir/bin/basher"
 # shellcheck disable=SC2016
 rcFileLine1='export PATH="'$(dirname "$basherExecutable")':$PATH"'
 # shellcheck disable=SC2016
-rcFileLine2='eval "$(_mute '$basherExecutable' init - '$shellName')"'
+rcFileLine2='eval "$('$basherExecutable' init - '$shellName')"'
 
 if [[ "$1" == "install" ]] ; then
     if [ -f "$basherExecutable" ]; then
