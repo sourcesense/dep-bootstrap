@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=dep-bootstrap.sh
-scriptVersion=1
+scriptVersion=2
 repoURL=https://github.com/EcoMind/dep-bootstrap.git
 targetDir="$HOME/.dep"
 
@@ -15,6 +15,10 @@ if [ -z "$DEP_SOURCED" ] ; then
     gitDir="$targetDir/git"
     versionDir="$targetDir/bootstrap/$version"
     if [[ ! -d "$versionDir" ]] ; then
+        if [[ $version == "local-SNAPSHOT" ]] ; then
+            >&2 echo  "$scriptErrorLabel $versionDir not found. Please create it using following command (replacing '/path/to/my/local' part): 'mkdir -p $versionDir && ln -s /path/to/my/local/dep-bootstrap/bootstrap.sh $versionDir/bootstrap.sh'"
+            exit 1
+        fi
         if [[ ! -d "$gitDir" ]] ; then
             if ! git -c advice.detachedHead=false clone --depth 1 --branch "$version" "$repoURL" "$gitDir" -q ; then
                 >&2 echo "$scriptErrorLabel error cloning repo '$repoURL' tag '$version' in '$gitDir'"
