@@ -204,6 +204,9 @@ dep_define()
     local arr
     #shellcheck disable=SC2206
     arr=(${packageNameTag//:/ })
+    if (( ${#arr[@]} != 2 )); then
+        _exit_err "usage: dep define <packageName:packageTag>"
+    fi
     local packageName=${arr[0]}
     local packageTag=${arr[1]}
     if [[ -z $packageName ]] || [[ -z $packageTag ]]; then
@@ -254,8 +257,11 @@ dep_include()
     local arr
     #shellcheck disable=SC2206
     arr=(${packageNameTag//:/ })
-    local packageName=${arr[0]}
-    local packageTag=${arr[1]}
+    local packageName="${arr[0]}"
+    local packageTag=""
+    if (( ${#arr[@]} >= 2 )); then
+        packageTag="${arr[1]}"
+    fi
 
     includedValue=$(get_included_value "$packageName")
     if [[ -n "$includedValue" ]]; then
