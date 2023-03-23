@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.5.1
+scriptVersion=0.5.3
 logLinePrefix="[dep]"
 
 # Levels:
@@ -10,6 +10,7 @@ logLinePrefix="[dep]"
 # 3: print verbose
 # 4: print operation internals (output of git, etc.) intermixed with dep messages
 _DEP_VERBOSENESS_LEVEL="${_DEP_VERBOSENESS_LEVEL:-2}"
+DEP_INCLUDED="${DEP_INCLUDED:-}"
 
 _LOG_LINE_WATCHER_INDENT_SKIP_FIRST=0
 _LOG_LINE_WATCHER_INDENT_COUNT=0
@@ -143,7 +144,7 @@ if [[ "$1" == "install" ]]; then
     exit
 fi
 
-if [[ "$DEP_SOURCED" == 1 ]]; then
+if [[ "${DEP_SOURCED:-}" == 1 ]]; then
     _exit_err "Error invoking '$scriptName' (already sourced)"
 fi
 
