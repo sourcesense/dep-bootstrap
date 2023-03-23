@@ -11,7 +11,7 @@ if [[ -z "$version" ]]; then
     exit 1
 fi
 shift
-if [ -z "$DEP_SOURCED" ]; then
+if [ -z "${DEP_SOURCED:-}" ]; then
     gitDir="$targetDir/git"
     versionDir="$targetDir/bootstrap/$version"
     if [[ ! -d "$versionDir" ]]; then
