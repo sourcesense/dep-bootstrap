@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 scriptName=bootstrap.sh
-scriptVersion=0.5.3
+scriptVersion=0.5.4
 logLinePrefix="[dep]"
 
 # Levels:
@@ -113,7 +113,7 @@ rcFileLine1='export PATH="'$(dirname "$basherExecutable")':$PATH"'
 # shellcheck disable=SC2016
 rcFileLine2='eval "$('$basherExecutable' init - '$shellName')"'
 
-if [[ "$1" == "install" ]]; then
+if [[ "${1:-}" == "install" ]]; then
     if [ -f "$basherExecutable" ]; then
         _emit_log_line "Basher executable already present, skipping installation"
     else
@@ -177,7 +177,7 @@ checkBlanks "$repoBaseURL"
 
 dep()
 {
-    command=$1
+    command="${1:-}"
     if [[ -z $command ]]; then
         _exit_err "usage: dep <command> <options> (currently available commands: define, include)"
     fi
@@ -187,7 +187,7 @@ dep()
 
 get_included_value()
 {
-    packageName=$1
+    packageName="${1:-}"
     if [[ $DEP_INCLUDED = *" $packageName:"* ]]; then
         local includedValue=${DEP_INCLUDED#*" $packageName:"}
         echo "${includedValue%%" "*}"
@@ -196,7 +196,7 @@ get_included_value()
 
 dep_define()
 {
-    local packageNameTag=$1
+    local packageNameTag="${1:-}"
     if [[ -z $packageNameTag ]]; then
         _exit_err "usage: dep define <packageName:packageTag>"
     fi
@@ -241,9 +241,9 @@ dep_include()
 {
     _indent_begin
 
-    local packageNameTag=$1
-    local scriptName=$2
-    if [[ -z $packageNameTag ]] || [[ -z $scriptName ]]; then
+    local packageNameTag="${1:-}"
+    local scriptName="${2:-}"
+    if [[ -z "$packageNameTag" ]] || [[ -z "$scriptName" ]]; then
         _exit_err "usage: dep include <packageName[:packageTag]> <scriptName>"
     fi
     checkBlanks "$packageNameTag" "$scriptName"
